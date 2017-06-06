@@ -8,6 +8,13 @@
 </h1>
 <br>
 
+{% if is_private %}
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Sorry, this user is private.
+<a href={{ url_for('welcome') }}>Go back.</a>
+
+{% else %}
+
 {% for photo_url in first12 %}
 {{ macros.display_thumbnail(photo_url) }}
 {% endfor %}
@@ -28,4 +35,7 @@ We will send you a download link within 10 minutes.
     <button type="submit" class="btn btn-default">Download your photos!</button>
 </form>
 <br><br><br>
+
+{% endif %}
+
 {% endblock %}

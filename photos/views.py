@@ -37,13 +37,19 @@ def user_photos(username):
         first12 = script['entry_data']['ProfilePage'][0]['user']['media']['nodes']
         first12 = [x['thumbnail_src'] for x in first12]
         photo_count = script['entry_data']['ProfilePage'][0]['user']['media']['count']
-        return render_template("user_photos.html", first12 = first12[0:9], photo_count=photo_count, username=username)
+        is_private = script['entry_data']['ProfilePage'][0]['user']['is_private']
+        return render_template(
+                                "user_photos.html",
+                                first12 = first12[0:9],
+                                photo_count=photo_count,
+                                username=username,
+                                is_private=is_private
+                                )
     if res.status_code == 404:
         flash("That user does not exist", "danger")
         return redirect(url_for("welcome"))
 
 @app.route("/photos/<username>", methods=["POST"])
-#@login_required
 def user_photos_post(username):
     # visit main profile page to get user ID from HTML source
     res = requests.get(PROFILE_PAGE_URL.format(username))
