@@ -9,22 +9,33 @@
 <br>
 
 {% if is_private %}
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Sorry, this user is private.
+    <a href={{ url_for('welcome') }}>Go back.</a>
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Sorry, this user is private.
-<a href={{ url_for('welcome') }}>Go back.</a>
+{% elif photo_count == 0 %}
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;This user has no photos.
 
-{% else %}
+{% elif photo_count <= 10 %}
+    {% for photo_url in first12[0:10] %}
+        {{ macros.display_thumbnail(photo_url) }}
+    {% endfor %}
 
-{% for photo_url in first12 %}
-{{ macros.display_thumbnail(photo_url) }}
-{% endfor %}
+{%elif photo_count > 10 %}
+    {% for photo_url in first12[0:9] %}
+        {{ macros.display_thumbnail(photo_url) }}
+    {% endfor %}
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    And {{ formatted_photo_count_minus_9 }} more!
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;And {{ photo_count - 9 }} more photos!
+{% endif %}
+
+{% if photo_count and not is_private %}
+
 <br>
 <br>
 <br>
 Download your photos by submitting your email address below!<br>
-We will send you a download link within 10 minutes.
+We will send you a download link when they are ready.
 <br>
 <br>
 <div class="form-group">

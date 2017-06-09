@@ -1,10 +1,11 @@
-from flask import render_template, request, redirect, url_for, flash
+from flask import render_template, request, redirect, url_for, flash, g
 from flask.ext.login import login_user, login_required, current_user, logout_user
 from werkzeug.security import check_password_hash
 from lxml import etree
 import json
 import requests
 import re
+import locale
 
 from . import app
 from .database import session, Photo
@@ -14,6 +15,15 @@ SCRIPT_XPATH = "//script[@type='text/javascript' and contains(text(), 'sharedDat
 SCROLL_URL = 'https://www.instagram.com/graphql/query/?query_id={}&id={}&first={}&after={}'
 PHOTOS_PER_SCROLL = 500
 VALID_QUERY_ID = 17880160963012870 # required query parameter; appears to always be the same
+
+def intWithCommas(x):
+    if x < 0:
+        return '-' + intWithCommas(-x)
+    result = ''
+    while x >= 1000:
+        x, r = divmod(x, 1000)
+        result = ",%03d%s" % (r, result)
+    return "%d%s" % (x, result)
 
 @app.route("/", methods=['GET'])
 def welcome():
@@ -40,8 +50,9 @@ def user_photos(username):
         is_private = script['entry_data']['ProfilePage'][0]['user']['is_private']
         return render_template(
                                 "user_photos.html",
-                                first12 = first12[0:9],
+                                first12 = first12,
                                 photo_count=photo_count,
+                                formatted_photo_count_minus_9=intWithCommas(photo_count - 9),
                                 username=username,
                                 is_private=is_private
                                 )
@@ -66,6 +77,10 @@ def user_photos_post(username):
     user_id = script['entry_data']['ProfilePage'][0]['logging_page_id']
     user_id = re.findall('[0-9]+', user_id)[0]
     photo_count = script['entry_data']['ProfilePage'][0]['user']['media']['count']
+    
+    flash("Downloading. You will receive an email within an hour with a download link.", "success")
+    #need to implement actual downloading of files. Currently just saves links to database.
+    return redirect(url_for("user_photos", username=username))
     
     # set default values before loop
     end_cursor = '' # value that determines which photos to show next; blank value starts at top
@@ -92,6 +107,4 @@ def user_photos_post(username):
         )
         session.add(new_photo)
         session.commit()
-    flash("Downloading. You will receive an email within an hour with a download link.", "success")
-    #need to implement actual downloading of files. Currently just saves links to database.
-    return redirect(url_for("user_photos", username=username))
+    
