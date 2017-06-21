@@ -2,26 +2,32 @@
 {% extends "base.html" %}
 {% block content %}
 
+{% for photo_url in first12[0:10] %}
+    {{ macros.display_thumbnail(photo_url) }}
+{% endfor %}
+
 <h1 class="hero-title noslider">
     <span class="breakline"></span>
-    <span class="breakline" style="width: 800px; text-align: center; margin: 0px auto;">Protect your photos!</span>
+    <br>
+    <span class="breakline" style="width: 800px; text-align: center; margin: 0px auto; position: relative; left: 340px">
+        Protect your photos!
+    </span>
 </h1>
 
-<p class="hero-subtitle" style="width: 620px; font-size: 17px;">
+<p class="hero-subtitle" style="width: 620px; font-size: 17px; position: relative; left: 210px">
     <br><br>
     Back-up your Instagram photos to prevent account loss! This tool allows you to download all the photos you've posted to your Instagram account. Photos downloaded will be at the maximum resolution stored by Instagram (generally 1080x1080).
     <br><br>
 </p>
 
-<form role="form" method="POST">
-    <p style="font-style: italic">
-        Get started!
+<form role="form" method="POST" style="position: relative; left: 350px">
+    <p style="font-style: italic; position: relative; left: 120px">Get started!
     </p>
     <div class="form-group">
-        <label for="username">Your Instagram Username</label>
-        <input style="width: 250px" type="username" class="form-control" id="username" name="username" placeholder="Username" required>
+        <label for="username" style="position: relative; left: 70px">Your Instagram Username</label>
+        <input style="width: 250px; position: relative; left: 28px" type="username" class="form-control" id="username" name="username" placeholder="Username" required>
     </div>
-    <button type="submit" class="btn btn-default">Go to your feed!</button>
+    <button type="submit" class="btn btn-default" style="position: relative; left: 92px">Go to your feed!</button>
 </form>
 <br>
 

@@ -16,6 +16,18 @@ SCROLL_URL = 'https://www.instagram.com/graphql/query/?query_id={}&id={}&first={
 PHOTOS_PER_SCROLL = 500
 VALID_QUERY_ID = 17880160963012870 # required query parameter; appears to always be the same
 
+def after_this_request(func):
+    if not hasattr(g, 'call_after_request'):
+        g.call_after_request = []
+    g.call_after_request.append(func)
+    return func
+
+@app.after_request
+def per_request_callbacks(response):
+    for func in getattr(g, 'call_after_request', ()):
+        response = func(response)
+    return response
+
 def intWithCommas(x):
     if x < 0:
         return '-' + intWithCommas(-x)
@@ -27,7 +39,16 @@ def intWithCommas(x):
 
 @app.route("/", methods=['GET'])
 def welcome():
-    return render_template("welcome.html")
+    res = requests.get(PROFILE_PAGE_URL.format("instagram"))
+    root = etree.HTML(res.content)
+    script = root.xpath(SCRIPT_XPATH)
+    json_start = script[0].find('{')
+    json_end = script[0].rfind('}')
+    script = script[0][json_start:json_end+1]
+    script = json.loads(script)
+    first12 = script['entry_data']['ProfilePage'][0]['user']['media']['nodes']
+    first12 = [x['thumbnail_src'] for x in first12]
+    return render_template("welcome.html", first12=first12)
 
 @app.route("/", methods=["POST"])
 def welcome_post():
@@ -107,4 +128,3 @@ def user_photos_post(username):
         )
         session.add(new_photo)
         session.commit()
-    
