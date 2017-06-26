@@ -6,6 +6,10 @@ import json
 import requests
 import re
 import locale
+from celery import Celery
+import smtplib
+import email.utils
+from email.mime.text import MIMEText
 
 from . import app
 from .database import session, Photo
@@ -15,6 +19,13 @@ SCRIPT_XPATH = "//script[@type='text/javascript' and contains(text(), 'sharedDat
 SCROLL_URL = 'https://www.instagram.com/graphql/query/?query_id={}&id={}&first={}&after={}'
 PHOTOS_PER_SCROLL = 500
 VALID_QUERY_ID = 17880160963012870 # required query parameter; appears to always be the same
+
+celapp = Celery('photos', 'redis://localhost:6379/0')
+
+@celapp.task
+def my_background_task():
+    print('WHAT WHAT WHAT')
+    return 1
 
 def after_this_request(func):
     if not hasattr(g, 'call_after_request'):
