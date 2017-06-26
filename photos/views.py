@@ -1,14 +1,9 @@
 from flask import render_template, request, redirect, url_for, flash, g
-from flask.ext.login import login_user, login_required, current_user, logout_user
-from werkzeug.security import check_password_hash
 from lxml import etree
 import json
 import requests
 import re
 import locale
-import smtplib
-import email.utils
-from email.mime.text import MIMEText
 import urllib.request
 import zipfile
 import os
