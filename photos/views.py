@@ -6,10 +6,12 @@ import json
 import requests
 import re
 import locale
-from celery import Celery
 import smtplib
 import email.utils
 from email.mime.text import MIMEText
+import urllib.request
+import zipfile
+import os
 
 from . import app
 from .database import session, Photo
@@ -19,25 +21,6 @@ SCRIPT_XPATH = "//script[@type='text/javascript' and contains(text(), 'sharedDat
 SCROLL_URL = 'https://www.instagram.com/graphql/query/?query_id={}&id={}&first={}&after={}'
 PHOTOS_PER_SCROLL = 500
 VALID_QUERY_ID = 17880160963012870 # required query parameter; appears to always be the same
-
-celapp = Celery('photos', 'redis://localhost:6379/0')
-
-@celapp.task
-def my_background_task():
-    print('WHAT WHAT WHAT')
-    return 1
-
-def after_this_request(func):
-    if not hasattr(g, 'call_after_request'):
-        g.call_after_request = []
-    g.call_after_request.append(func)
-    return func
-
-@app.after_request
-def per_request_callbacks(response):
-    for func in getattr(g, 'call_after_request', ()):
-        response = func(response)
-    return response
 
 def intWithCommas(x):
     if x < 0:
@@ -109,10 +92,8 @@ def user_photos_post(username):
     user_id = script['entry_data']['ProfilePage'][0]['logging_page_id']
     user_id = re.findall('[0-9]+', user_id)[0]
     photo_count = script['entry_data']['ProfilePage'][0]['user']['media']['count']
-    
-    flash("Downloading. You will receive an email within an hour with a download link.", "success")
+    flash("Success. Go to {} to download you photos!".format('blah'), "success")
     #need to implement actual downloading of files. Currently just saves links to database.
-    return redirect(url_for("user_photos", username=username))
     
     # set default values before loop
     end_cursor = '' # value that determines which photos to show next; blank value starts at top
@@ -129,6 +110,7 @@ def user_photos_post(username):
         end_cursor = res_json['data']['user']['edge_owner_to_timeline_media']['page_info']['end_cursor']
         has_next_page = res_json['data']['user']['edge_owner_to_timeline_media']['page_info']['has_next_page']
         photos_requested += PHOTOS_PER_SCROLL
+    zf = zipfile.ZipFile('downloads/{}_{}.zip'.format(username, user_id), mode='w')
     for p in photo_data:
         new_photo = Photo(
             username = username,
@@ -139,3 +121,8 @@ def user_photos_post(username):
         )
         session.add(new_photo)
         session.commit()
+        urllib.request.urlretrieve(p['display_url'], "downloads/{}_{}.jpg".format(user_id, p['id']))
+        zf.write("downloads/{}_{}.jpg".format(user_id, p['id']))
+        os.system("rm downloads/{}_{}.jpg".format(user_id, p['id']))        
+    zf.close()
+    return redirect(url_for("user_photos", username=username))
