@@ -123,4 +123,4 @@ def user_photos_post(username):
 
 @app.route("/photos/download/<download_name>", methods=["GET", "POST"])
 def download_photos(download_name):
-    return send_from_directory(directory="/home/ubuntu/workspace/thinkful/projects/photos/", filename="youwantthephotos_downloads/{}.zip".format(download_name))
+    return send_from_directory(directory=os.getcwd(), filename="youwantthephotos_downloads/{}.zip".format(download_name))
