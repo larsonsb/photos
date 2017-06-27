@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, flash, g
+from flask import render_template, request, redirect, url_for, flash, g, send_from_directory
 from lxml import etree
 import json
 import requests
@@ -120,4 +120,8 @@ def user_photos_post(username):
         zf.write("downloads/{}_{}.jpg".format(user_id, p['id']))
         os.system("rm downloads/{}_{}.jpg".format(user_id, p['id']))        
     zf.close()
-    return redirect(url_for("user_photos", username=username))
+    return redirect(url_for("download_photos", download_name="{}_{}.zip".format(username, user_id)))
+
+@app.route("/photos/download/<download_name>", methods=["GET", "POST"])
+def download_photos(download_name):
+    return send_from_directory(directory="/home/ubuntu/workspace/thinkful/projects/photos/", filename="downloads/{}".format(download_name))
