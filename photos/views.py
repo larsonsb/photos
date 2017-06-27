@@ -1,9 +1,10 @@
-from flask import render_template, request, redirect, url_for, flash, g, send_from_directory
+"""Views."""
+
+from flask import render_template, request, redirect, url_for, flash, send_from_directory
 from lxml import etree
 import json
 import requests
 import re
-import locale
 import urllib.request
 import zipfile
 import os
@@ -16,10 +17,12 @@ PROFILE_PAGE_URL = 'https://www.instagram.com/{}/'
 SCRIPT_XPATH = "//script[@type='text/javascript' and contains(text(), 'sharedData')]/text()"
 SCROLL_URL = 'https://www.instagram.com/graphql/query/?query_id={}&id={}&first={}&after={}'
 PHOTOS_PER_SCROLL = 500
-VALID_QUERY_ID = 17880160963012870 # required query parameter; appears to always be the same
+VALID_QUERY_ID = 17880160963012870  # required query parameter; appears to always be the same
 DOMAIN = 'http://0.0.0.0:8080'
 
+
 def intWithCommas(x):
+    """Turn int into a comma-formatted number."""
     if x < 0:
         return '-' + intWithCommas(-x)
     result = ''
@@ -28,8 +31,10 @@ def intWithCommas(x):
         result = ",%03d%s" % (r, result)
     return "%d%s" % (x, result)
 
+
 @app.route("/", methods=['GET'])
 def welcome():
+    """Homepage displaying a few example photos."""
     res = requests.get(PROFILE_PAGE_URL.format("instagram"))
     root = etree.HTML(res.content)
     script = root.xpath(SCRIPT_XPATH)
@@ -41,13 +46,17 @@ def welcome():
     first12 = [x['thumbnail_src'] for x in first12]
     return render_template("welcome.html", first12=first12)
 
+
 @app.route("/", methods=["POST"])
 def welcome_post():
+    """Submit username to visit user page."""
     username = request.form["username"]
     return redirect(url_for("user_photos", username=username))
 
+
 @app.route("/photos/<username>", methods=["GET"])
 def user_photos(username):
+    """User page."""
     res = requests.get(PROFILE_PAGE_URL.format(username))
     if res.status_code == 200:
         root = etree.HTML(res.content)
@@ -62,7 +71,7 @@ def user_photos(username):
         is_private = script['entry_data']['ProfilePage'][0]['user']['is_private']
         return render_template(
                                 "user_photos.html",
-                                first12 = first12,
+                                first12=first12,
                                 photo_count=photo_count,
                                 formatted_photo_count_minus_9=intWithCommas(photo_count - 9),
                                 username=username,
@@ -72,26 +81,28 @@ def user_photos(username):
         flash("That user does not exist", "danger")
         return redirect(url_for("welcome"))
 
+
 @app.route("/photos/<username>", methods=["POST"])
 def user_photos_post(username):
+    """Submit email and download photos."""
     # visit main profile page to get user ID from HTML source
     res = requests.get(PROFILE_PAGE_URL.format(username))
     root = etree.HTML(res.content)
-    
+
     # find imbedded JS data and convert to dictionary
     script = root.xpath(SCRIPT_XPATH)
     json_start = script[0].find('{')
     json_end = script[0].rfind('}')
     script = script[0][json_start:json_end+1]
     script = json.loads(script)
-    
+
     # locate user ID and total photo count
     user_id = script['entry_data']['ProfilePage'][0]['logging_page_id']
     user_id = re.findall('[0-9]+', user_id)[0]
     photo_count = script['entry_data']['ProfilePage'][0]['user']['media']['count']
-    
+
     # set default values before loop
-    end_cursor = '' # value that determines which photos to show next; blank value starts at top
+    end_cursor = ''  # value that determines which photos to show next; blank value starts at top
     has_next_page = True
     photos_requested = 0
     photo_data = []
@@ -111,11 +122,11 @@ def user_photos_post(username):
     zf = zipfile.ZipFile('youwantthephotos_downloads/photos_{}_{}.zip'.format(username, user_id), mode='w')
     for p in photo_data:
         new_photo = Photo(
-            username = username,
-            instagram_id = p['id'],
-            display_url = p['display_url'],
-            likes = p['edge_liked_by']['count'],
-            taken_at_timestamp = p['taken_at_timestamp'],
+            username=username,
+            instagram_id=p['id'],
+            display_url=p['display_url'],
+            likes=p['edge_liked_by']['count'],
+            taken_at_timestamp=p['taken_at_timestamp'],
         )
         session.add(new_photo)
         session.commit()
@@ -126,12 +137,13 @@ def user_photos_post(username):
     flash('Downloading! We will email you a download link when it is ready.', "success")
     fromaddr = 'youwantthephotos@gmail.com'
     toaddr = request.form["email"]
+    download_url = DOMAIN + url_for("download_photos", download_name="photos_{}_{}".format(username, user_id))
     msg = "\r\n".join([
       "From: {}".format("You Want The Photos"),
       "To: {}".format(toaddr),
       "Subject: Your photo download is ready!",
       "",
-      "Your photos are READY! Download here: {}{}".format(DOMAIN, url_for("download_photos", download_name="photos_{}_{}".format(username, user_id)))
+      "Your photos are READY! Download here: {}".format(download_url)
     ])
     email_username = 'youwantthephotos@gmail.com'
     password = os.environ['PHOTOS_PWD']
@@ -143,6 +155,8 @@ def user_photos_post(username):
     server.quit()
     return redirect(url_for("user_photos", username=username))
 
+
 @app.route("/photos/download/<download_name>", methods=["GET", "POST"])
 def download_photos(download_name):
+    """Download zip file."""
     return send_from_directory(directory=os.getcwd(), filename="youwantthephotos_downloads/{}.zip".format(download_name))
