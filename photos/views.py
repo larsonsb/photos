@@ -87,8 +87,6 @@ def user_photos_post(username):
     user_id = script['entry_data']['ProfilePage'][0]['logging_page_id']
     user_id = re.findall('[0-9]+', user_id)[0]
     photo_count = script['entry_data']['ProfilePage'][0]['user']['media']['count']
-    flash("Success. Go to {} to download you photos!".format('blah'), "success")
-    #need to implement actual downloading of files. Currently just saves links to database.
     
     # set default values before loop
     end_cursor = '' # value that determines which photos to show next; blank value starts at top
@@ -105,7 +103,7 @@ def user_photos_post(username):
         end_cursor = res_json['data']['user']['edge_owner_to_timeline_media']['page_info']['end_cursor']
         has_next_page = res_json['data']['user']['edge_owner_to_timeline_media']['page_info']['has_next_page']
         photos_requested += PHOTOS_PER_SCROLL
-    zf = zipfile.ZipFile('downloads/{}_{}.zip'.format(username, user_id), mode='w')
+    zf = zipfile.ZipFile('youwantthephotos_downloads/photos_{}_{}.zip'.format(username, user_id), mode='w')
     for p in photo_data:
         new_photo = Photo(
             username = username,
@@ -116,12 +114,13 @@ def user_photos_post(username):
         )
         session.add(new_photo)
         session.commit()
-        urllib.request.urlretrieve(p['display_url'], "downloads/{}_{}.jpg".format(user_id, p['id']))
-        zf.write("downloads/{}_{}.jpg".format(user_id, p['id']))
-        os.system("rm downloads/{}_{}.jpg".format(user_id, p['id']))        
+        urllib.request.urlretrieve(p['display_url'], "youwantthephotos_downloads/{}_{}.jpg".format(username, p['id']))
+        zf.write("youwantthephotos_downloads/{}_{}.jpg".format(username, p['id']))
+        os.system("rm youwantthephotos_downloads/{}_{}.jpg".format(username, p['id']))
     zf.close()
-    return redirect(url_for("download_photos", download_name="{}_{}.zip".format(username, user_id)))
+    flash('Success! Click <a href="{}">here</a> to download your photos!'.format(url_for("download_photos", download_name="photos_{}_{}".format(username, user_id))), "success")
+    return redirect(url_for("user_photos", username=username))
 
 @app.route("/photos/download/<download_name>", methods=["GET", "POST"])
 def download_photos(download_name):
-    return send_from_directory(directory="/home/ubuntu/workspace/thinkful/projects/photos/", filename="downloads/{}".format(download_name))
+    return send_from_directory(directory="/home/ubuntu/workspace/thinkful/projects/photos/", filename="youwantthephotos_downloads/{}.zip".format(download_name))
