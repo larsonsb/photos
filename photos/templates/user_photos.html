@@ -14,6 +14,7 @@
 
 {% elif photo_count == 0 %}
     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;This user has no photos.
+    <a href={{ url_for('welcome') }}>Go back.</a>
 
 {% elif photo_count <= 10 %}
     {% for photo_url in first12[0:10] %}
