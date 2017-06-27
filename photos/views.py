@@ -7,6 +7,7 @@ import locale
 import urllib.request
 import zipfile
 import os
+import smtplib
 
 from . import app
 from .database import session, Photo
@@ -16,6 +17,7 @@ SCRIPT_XPATH = "//script[@type='text/javascript' and contains(text(), 'sharedDat
 SCROLL_URL = 'https://www.instagram.com/graphql/query/?query_id={}&id={}&first={}&after={}'
 PHOTOS_PER_SCROLL = 500
 VALID_QUERY_ID = 17880160963012870 # required query parameter; appears to always be the same
+DOMAIN = 'http://0.0.0.0:8080'
 
 def intWithCommas(x):
     if x < 0:
@@ -93,6 +95,7 @@ def user_photos_post(username):
     has_next_page = True
     photos_requested = 0
     photo_data = []
+
     # make AJAX request for photo information; repeat request until all photos found
     while has_next_page and (photos_requested <= photo_count):
         res = requests.get(SCROLL_URL.format(VALID_QUERY_ID, user_id, PHOTOS_PER_SCROLL, end_cursor))
@@ -103,6 +106,8 @@ def user_photos_post(username):
         end_cursor = res_json['data']['user']['edge_owner_to_timeline_media']['page_info']['end_cursor']
         has_next_page = res_json['data']['user']['edge_owner_to_timeline_media']['page_info']['has_next_page']
         photos_requested += PHOTOS_PER_SCROLL
+
+    # put all photos in one zip file, and add info to database
     zf = zipfile.ZipFile('youwantthephotos_downloads/photos_{}_{}.zip'.format(username, user_id), mode='w')
     for p in photo_data:
         new_photo = Photo(
@@ -118,7 +123,24 @@ def user_photos_post(username):
         zf.write("youwantthephotos_downloads/{}_{}.jpg".format(username, p['id']))
         os.system("rm youwantthephotos_downloads/{}_{}.jpg".format(username, p['id']))
     zf.close()
-    flash('Success! Click <a href="{}">here</a> to download your photos!'.format(url_for("download_photos", download_name="photos_{}_{}".format(username, user_id))), "success")
+    flash('Downloading! We will email you a download link when it is ready.', "success")
+    fromaddr = 'youwantthephotos@gmail.com'
+    toaddr = request.form["email"]
+    msg = "\r\n".join([
+      "From: {}".format("You Want The Photos"),
+      "To: {}".format(toaddr),
+      "Subject: Your photo download is ready!",
+      "",
+      "Your photos are READY! Download here: {}{}".format(DOMAIN, url_for("download_photos", download_name="photos_{}_{}".format(username, user_id)))
+    ])
+    email_username = 'youwantthephotos@gmail.com'
+    password = os.environ['PHOTOS_PWD']
+    server = smtplib.SMTP('smtp.gmail.com:587')
+    server.ehlo()
+    server.starttls()
+    server.login(email_username, password)
+    server.sendmail(fromaddr, toaddr, msg)
+    server.quit()
     return redirect(url_for("user_photos", username=username))
 
 @app.route("/photos/download/<download_name>", methods=["GET", "POST"])
