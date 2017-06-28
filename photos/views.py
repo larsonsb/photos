@@ -9,8 +9,13 @@ import time
 import urllib.request
 import zipfile
 from celery import Celery
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import formatdate
 from flask import render_template, request, redirect, url_for, flash, send_from_directory, Flask
 from lxml import etree
+from os.path import basename
 
 from . import app
 from .database import session, Photo
@@ -28,6 +33,9 @@ REDIS_LOCATION = 'redis://localhost:6379/0'
 DOWNLOAD_FOLDER = 'youwantthedownloads'
 FRONTPAGE_USER = 'instagram'
 EMAIL_FOOTER = '### This is an automatically generated email. Thanks for using You Want The Photos!'
+EMAIL_SUBJECT = 'Your photo download is ready!'
+MILLION = 1000000
+MAX_ATTACHMENT_SIZE_MB = 15
 
 # Celery task queue setup
 cel_app = Flask(__name__)
@@ -96,18 +104,31 @@ def download_files(username, request_email):
     zf.close()
 
     download_url = '{}/photos/download/{}'.format(DOMAIN, zip_stub)
-    msg = "\r\n".join([
-      "From: {}".format(FROM_NAME),
-      "To: {}".format(request_email),
-      "Subject: Your photo download is ready!",
-      "",
-      "Your photos are READY! Download them here: {}\n\n{}".format(download_url, EMAIL_FOOTER)
-    ])
+    msg = MIMEMultipart()
+    msg['From'] = FROM_NAME
+    msg['To'] = request_email
+    msg['Date'] = formatdate(localtime=True)
+    msg['Subject'] = EMAIL_SUBJECT
+    zip_size = os.stat(zippath).st_size
+
+    if zip_size < (MAX_ATTACHMENT_SIZE_MB * MILLION):
+        msg.attach(MIMEText('Your photos are READY! Download the attached zip file and enjoy!\n\n{}'.format(EMAIL_FOOTER)))
+        with open(zippath, 'rb') as fil:
+            part = MIMEApplication(
+                fil.read(),
+                Name=basename(zippath)
+            )
+            part['Content-Disposition'] = 'attachment; filename="%s"' % basename(zippath)
+            msg.attach(part)
+
+    else:
+        msg.attach(MIMEText("Your photos are READY! Download them here: {}\n\n{}".format(download_url, EMAIL_FOOTER)))
+
     server = smtplib.SMTP('smtp.gmail.com:587')
     server.ehlo()
     server.starttls()
     server.login(FROM_EMAIL, os.environ['PHOTOS_PWD'])
-    server.sendmail(FROM_EMAIL, request_email, msg)
+    server.sendmail(FROM_EMAIL, request_email, msg.as_string())
     server.quit()
 
 
