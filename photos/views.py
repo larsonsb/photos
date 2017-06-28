@@ -15,13 +15,6 @@ from lxml import etree
 from . import app
 from .database import session, Photo
 
-# Celery task queue setup
-cel_app = Flask(__name__)
-cel_app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
-cel_app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
-celery = Celery(cel_app.name, broker=cel_app.config['CELERY_BROKER_URL'])
-celery.conf.update(cel_app.config)
-
 # Constants
 PROFILE_PAGE_URL = 'https://www.instagram.com/{}/'
 SCRIPT_XPATH = "//script[@type='text/javascript' and contains(text(), 'sharedData')]/text()"
@@ -29,7 +22,19 @@ SCROLL_URL = 'https://www.instagram.com/graphql/query/?query_id={}&id={}&first={
 PHOTOS_PER_SCROLL = 500
 VALID_QUERY_ID = 17880160963012870  # required query parameter; appears to always be the same
 FROM_EMAIL = 'youwantthephotos@gmail.com'
+FROM_NAME = 'You Want The Photos'
 DOMAIN = 'http://0.0.0.0:8080'
+REDIS_LOCATION = 'redis://localhost:6379/0'
+DOWNLOAD_FOLDER = 'youwantthedownloads'
+FRONTPAGE_USER = 'instagram'
+EMAIL_FOOTER = '### This is an automatically generated email. Thanks for using You Want The Photos!'
+
+# Celery task queue setup
+cel_app = Flask(__name__)
+cel_app.config['CELERY_BROKER_URL'] = REDIS_LOCATION
+cel_app.config['CELERY_RESULT_BACKEND'] = REDIS_LOCATION
+celery = Celery(cel_app.name, broker=cel_app.config['CELERY_BROKER_URL'])
+celery.conf.update(cel_app.config)
 
 
 @celery.task
@@ -69,7 +74,9 @@ def download_files(username, request_email):
         photos_requested += PHOTOS_PER_SCROLL
 
     # put all photos in one zip file, and add info to database
-    zf = zipfile.ZipFile('youwantthedownloads/photos_{}_{}.zip'.format(username.replace('.', '-'), user_id), mode='w')
+    zip_stub = 'photos_{}_{}'.format(username.replace('.', '-'), user_id)
+    zippath = '{}/{}.zip'.format(DOWNLOAD_FOLDER, zip_stub)
+    zf = zipfile.ZipFile(zippath, mode='w')
     for p in photo_data:
         new_photo = Photo(
             username=username,
@@ -81,18 +88,20 @@ def download_files(username, request_email):
         session.add(new_photo)
         session.commit()
         time.sleep(1)
-        urllib.request.urlretrieve(p['display_url'], "youwantthedownloads/{}_{}.jpg".format(username.replace('.', '-'), p['id']))
-        zf.write("youwantthedownloads/{}_{}.jpg".format(username.replace('.', '-'), p['id']))
-        os.system("rm youwantthedownloads/{}_{}.jpg".format(username.replace('.', '-'), p['id']))
+        photo_stub = "{}_{}.jpg".format(username.replace('.', '-'), p['id'])
+        photopath = "{}/{}".format(DOWNLOAD_FOLDER, photo_stub)
+        urllib.request.urlretrieve(p['display_url'], photopath)
+        zf.write(photopath)
+        os.system("rm {}".format(photopath))
     zf.close()
 
-    download_url = '{}/photos/download/photos_{}_{}'.format(DOMAIN, username.replace('.', '-'), user_id)
+    download_url = '{}/photos/download/{}'.format(DOMAIN, zip_stub)
     msg = "\r\n".join([
-      "From: {}".format("You Want The Photos"),
+      "From: {}".format(FROM_NAME),
       "To: {}".format(request_email),
       "Subject: Your photo download is ready!",
       "",
-      "Your photos are READY! Download them here: {}\n\n# This is an automatically generated email. Thanks for using You Want The Photos!".format(download_url)
+      "Your photos are READY! Download them here: {}\n\n{}".format(download_url, EMAIL_FOOTER)
     ])
     server = smtplib.SMTP('smtp.gmail.com:587')
     server.ehlo()
@@ -116,7 +125,7 @@ def intWithCommas(x):
 @app.route("/", methods=['GET'])
 def welcome():
     """Homepage displaying a few example photos."""
-    res = requests.get(PROFILE_PAGE_URL.format("instagram"))
+    res = requests.get(PROFILE_PAGE_URL.format(FRONTPAGE_USER))
     root = etree.HTML(res.content)
     script = root.xpath(SCRIPT_XPATH)
     json_start = script[0].find('{')
@@ -166,7 +175,7 @@ def user_photos(username):
 @app.route("/photos/<username>", methods=["POST"])
 def user_photos_post(username):
     """Submit email and download photos."""
-    download_files.apply_async(args=[username, request.form["email"]], countdown=5)
+    download_files.apply_async(args=[username, request.form["email"]], countdown=1)
     flash('Downloading! We will email you a download link when it is ready.', "success")
     return redirect(url_for("user_photos", username=username))
 
@@ -174,4 +183,5 @@ def user_photos_post(username):
 @app.route("/photos/download/<download_name>", methods=["GET", "POST"])
 def download_photos(download_name):
     """Download zip file."""
-    return send_from_directory(directory=os.getcwd(), filename="youwantthedownloads/{}.zip".format(download_name.replace('.', '-')))
+    download_path = "{}/{}.zip".format(DOWNLOAD_FOLDER, download_name.replace('.', '-'))
+    return send_from_directory(directory=os.getcwd(), filename=download_path)
