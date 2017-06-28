@@ -1,15 +1,16 @@
 """Views."""
 
-from flask import render_template, request, redirect, url_for, flash, send_from_directory, Flask
-from lxml import etree
 import json
-import requests
+import os
 import re
+import requests
+import smtplib
+import time
 import urllib.request
 import zipfile
-import os
-import smtplib
 from celery import Celery
+from flask import render_template, request, redirect, url_for, flash, send_from_directory, Flask
+from lxml import etree
 
 from . import app
 from .database import session, Photo
@@ -68,7 +69,7 @@ def download_files(username, request_email):
         photos_requested += PHOTOS_PER_SCROLL
 
     # put all photos in one zip file, and add info to database
-    zf = zipfile.ZipFile('youwantthephotos_downloads/photos_{}_{}.zip'.format(username, user_id), mode='w')
+    zf = zipfile.ZipFile('youwantthedownloads/photos_{}_{}.zip'.format(username.replace('.', '-'), user_id), mode='w')
     for p in photo_data:
         new_photo = Photo(
             username=username,
@@ -79,24 +80,24 @@ def download_files(username, request_email):
         )
         session.add(new_photo)
         session.commit()
-        urllib.request.urlretrieve(p['display_url'], "youwantthephotos_downloads/{}_{}.jpg".format(username, p['id']))
-        zf.write("youwantthephotos_downloads/{}_{}.jpg".format(username, p['id']))
-        os.system("rm youwantthephotos_downloads/{}_{}.jpg".format(username, p['id']))
+        time.sleep(1)
+        urllib.request.urlretrieve(p['display_url'], "youwantthedownloads/{}_{}.jpg".format(username.replace('.', '-'), p['id']))
+        zf.write("youwantthedownloads/{}_{}.jpg".format(username.replace('.', '-'), p['id']))
+        os.system("rm youwantthedownloads/{}_{}.jpg".format(username.replace('.', '-'), p['id']))
     zf.close()
-    download_url = '{}/photos/download/photos_{}_{}'.format(DOMAIN, username, user_id)
+
+    download_url = '{}/photos/download/photos_{}_{}'.format(DOMAIN, username.replace('.', '-'), user_id)
     msg = "\r\n".join([
       "From: {}".format("You Want The Photos"),
       "To: {}".format(request_email),
       "Subject: Your photo download is ready!",
       "",
-      "Your photos are READY! Download here: {}".format(download_url)
+      "Your photos are READY! Download them here: {}\n\n# This is an automatically generated email. Thanks for using You Want The Photos!".format(download_url)
     ])
-    email_username = 'youwantthephotos@gmail.com'
-    password = os.environ['PHOTOS_PWD']
     server = smtplib.SMTP('smtp.gmail.com:587')
     server.ehlo()
     server.starttls()
-    server.login(email_username, password)
+    server.login(FROM_EMAIL, os.environ['PHOTOS_PWD'])
     server.sendmail(FROM_EMAIL, request_email, msg)
     server.quit()
 
@@ -173,4 +174,4 @@ def user_photos_post(username):
 @app.route("/photos/download/<download_name>", methods=["GET", "POST"])
 def download_photos(download_name):
     """Download zip file."""
-    return send_from_directory(directory=os.getcwd(), filename="youwantthephotos_downloads/{}.zip".format(download_name))
+    return send_from_directory(directory=os.getcwd(), filename="youwantthedownloads/{}.zip".format(download_name.replace('.', '-')))
