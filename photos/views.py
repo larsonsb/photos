@@ -84,6 +84,7 @@ def download_files(username, request_email):
     # put all photos in one zip file, and add info to database
     zip_stub = 'photos_{}_{}'.format(username.replace('.', '-'), user_id)
     zippath = '{}/{}.zip'.format(DOWNLOAD_FOLDER, zip_stub)
+    os.system('rm -f {}'.format(zippath))
     zf = zipfile.ZipFile(zippath, mode='w')
     for p in photo_data:
         new_photo = Photo(
